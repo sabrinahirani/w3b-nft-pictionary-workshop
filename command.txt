@@ -1,0 +1,3 @@
+1. ensure google sheet and google drive folder are public
+2. npx hardhat run deploy.js
+3. npx hardhat run mint.js

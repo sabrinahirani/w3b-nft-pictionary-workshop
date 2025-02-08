@@ -1,0 +1,15 @@
+{
+  "name": "W3B Pictionary Item",
+  "description": "We love pictionary",
+  "image": "ipfs://bafybeiatjtzunnqjemkrvy6ffrjb6yf6lnc4tix2zcdowyu5q6h6utj6qm",
+  "attributes": [
+    {
+      "trait_type": "Creator",
+      "value": "0x13348abDEF24dC1D934c9f86e75777dE978E62BB"
+    },
+    {
+      "trait_type": "Collection",
+      "value": "W3B Pictionary"
+    }
+  ]
+}

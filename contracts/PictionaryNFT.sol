@@ -16,4 +16,8 @@ contract PictionaryNFT is ERC721URIStorage, Ownable {
         _safeMint(recipient, tokenId);
         _setTokenURI(tokenId, tokenURI);
     }
+
+    function getNextTokenId() public view returns (uint256) {
+        return _count;
+    }
 }

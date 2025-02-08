@@ -8,7 +8,10 @@ require("dotenv").config();
 const SHEET_ID = "1JYD1__PHC1velq0C8EqhlGKENs1b9QuIVfazHz2QAuQ";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
 
-const { NFTStorage, File } = require("nft.storage");
+const pinata = new PinataSDK({
+    pinataJwt: process.env.PINATA_JWT,
+    pinataGateway: "ivory-immense-otter-61.mypinata.cloud",
+});
 
 function extractID(googleDriveURL) {
     const regex = /[?&]id=([a-zA-Z0-9_-]+)/;
@@ -16,53 +19,79 @@ function extractID(googleDriveURL) {
     return match ? match[1] : null;
 }
 
-async function uploadToNFTStorage(imageURL, name, description) {
+async function uploadImageToPinata(imageURL) {
     try {
-        const client = new NFTStorage({ token: process.env.NFT_STORAGE_KEY });
-        
-        const imageResponse = await axios.get(imageURL, { responseType: "arraybuffer" });
-        const imageBuffer = Buffer.from(imageResponse.data);
-        const imageFile = new File([imageBuffer], "nft.jpg", { type: "image/jpeg" });
-        
-        const metadata = await client.store({
-            name,
-            description,
-            image: imageFile
-        });
-        
-        return metadata.url; // Returns the metadata JSON URL (ipfs:// format)
+        const upload = await pinata.upload.url(imageURL);
+        if (upload) {
+            return `ipfs://${upload.IpfsHash}`;
+        }
     } catch (error) {
-        console.error("Error uploading to NFT.storage:", error);
-        return null;
+        console.error("Error uploading image to Pinata:", error);
     }
+    return null;
+}
+
+async function uploadMetadataToPinata(imageIPFS, identifier) {
+    try {
+        const metadata = {
+            name: "W3B Pictionary",
+            description: "Made with ❤️ by "+identifier,
+            image: imageIPFS
+        };
+
+        fs.writeFileSync('metadata.json', JSON.stringify(metadata, null, 2));
+        console.log("Metadata Saved (Locally)");
+
+        const jsonUpload = await pinata.upload.json(metadata);
+        if (jsonUpload) {
+            return `ipfs://${jsonUpload.IpfsHash}`;
+        }
+    } catch (error) {
+        console.error("Error uploading metadata to Pinata:", error);
+    }
+    return null;
 }
 
 async function main() {
+    const results = []; 
+
     try {
         const response = await axios.get(SHEET_URL);
         const rows = response.data.split("\n").slice(1);
 
         for (const row of rows) {
-            const [_, walletAddress, googleDriveURL] = row.split(",");
+            let [_, walletAddress, googleDriveURL, identifier] = row.split(",");
+            walletAddress = walletAddress.substring(1, walletAddress.length - 1);
             if (walletAddress && googleDriveURL) {
                 const googleDriveID = extractID(googleDriveURL);
                 if (!googleDriveID) {
                     console.error("Failed To Parse:", googleDriveURL);
                     continue;
                 }
-                
+
                 const imageURL = `https://drive.google.com/uc?export=view&id=${googleDriveID}`;
-                const tokenURI = await uploadToNFTStorage(imageURL, "W3B Pictionary Item", "We love pictionary");
+                const imageIPFS = await uploadImageToPinata(imageURL);
+                if (!imageIPFS) {
+                    console.error("Failed To Upload Image:", imageURL);
+                    continue;
+                }
+
+                const tokenURI = await uploadMetadataToPinata(imageIPFS, identifier);
                 if (!tokenURI) {
                     console.error("Failed To Upload Metadata:", imageURL);
                     continue;
                 }
-                
+
                 console.log(`Wallet Address: ${walletAddress}`);
                 console.log(`Token URI: ${tokenURI}`);
-                await mintNFT(walletAddress, tokenURI);
+
+                const tokenId = await mintNFT(walletAddress, tokenURI);
+
+                results.push({ identifier, walletAddress, tokenId: tokenId });
             }
         }
+
+        writeCSV(results);
     } catch (error) {
         console.error("Error:", error);
     }
@@ -84,11 +113,23 @@ async function mintNFT(walletAddress, tokenURI) {
         const [deployer] = await ethers.getSigners();
         const deployments = JSON.parse(fs.readFileSync("deployments.json", "utf8"));
         const contract = new ethers.Contract(deployments.contractAddress, getABI(), deployer);
+        const tokenId = await contract.getNextTokenId();
         await contract.mintNFT(walletAddress, tokenURI);
         console.log("NFT Minted!");
+        return tokenId;
     } catch (error) {
         console.error("Error minting NFT:", error);
+        return "NA";
     }
+}
+
+function writeCSV(data) {
+    const header = "Identifier,Wallet Address,Token ID\n";
+    const rows = data.map(item => `${item.identifier},${item.walletAddress},${item.tokenId}`).join("\n");
+
+    const csvContent = header + rows;
+    fs.writeFileSync('output.csv', csvContent, "utf8");
+    console.log("Written To output.csv");
 }
 
 main()

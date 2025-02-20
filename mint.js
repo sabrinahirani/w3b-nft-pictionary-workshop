@@ -59,7 +59,9 @@ async function main() {
         const response = await axios.get(SHEET_URL);
         const rows = response.data.split("\n").slice(1);
 
+        let tokenId = -1;
         for (const row of rows) {
+
             let [_, walletAddress, googleDriveURL, identifier] = row.split(",");
             walletAddress = walletAddress.substring(1, walletAddress.length - 1);
             if (walletAddress && googleDriveURL) {
@@ -85,7 +87,10 @@ async function main() {
                 console.log(`Wallet Address: ${walletAddress}`);
                 console.log(`Token URI: ${tokenURI}`);
 
-                const tokenId = await mintNFT(walletAddress, tokenURI);
+                const status = await mintNFT(walletAddress, tokenURI);
+                if (status) {
+                    tokenId++; 
+                }
 
                 results.push({ identifier, walletAddress, tokenId: tokenId });
             }
@@ -113,13 +118,12 @@ async function mintNFT(walletAddress, tokenURI) {
         const [deployer] = await ethers.getSigners();
         const deployments = JSON.parse(fs.readFileSync("deployments.json", "utf8"));
         const contract = new ethers.Contract(deployments.contractAddress, getABI(), deployer);
-        const tokenId = await contract.getNextTokenId();
         await contract.mintNFT(walletAddress, tokenURI);
         console.log("NFT Minted!");
-        return tokenId;
+        return true;
     } catch (error) {
         console.error("Error minting NFT:", error);
-        return "NA";
+        return false;
     }
 }
 

@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract PictionaryNFT is ERC721URIStorage, Ownable {
-    uint256 private _count;
+    uint256 private _count = 0;
 
     constructor() ERC721("PictionaryNFT", "PICT") Ownable(msg.sender) {}
 
@@ -15,9 +15,5 @@ contract PictionaryNFT is ERC721URIStorage, Ownable {
 
         _safeMint(recipient, tokenId);
         _setTokenURI(tokenId, tokenURI);
-    }
-
-    function getNextTokenId() public view returns (uint256) {
-        return _count;
     }
 }
